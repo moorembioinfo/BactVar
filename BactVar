@@ -41,10 +41,10 @@ if len(ref_allele) == 1 and len(alt_allele) == 1: #is SNP only
 
 def build_snpEff(reference_file):
     run_command(f"prokka {reference_file} --cpus 1 --prefix customref")
-    os.mkdir('/dipro2/matt/snpEff/data/custom-db')
-    shutil.copy('./customref/customref.gbk', '/dipro2/matt/snpEff/data/custom-db/genes.gbk')
+    os.mkdir('snpEff/data/custom-db')
+    shutil.copy('./customref/customref.gbk', 'snpEff/data/custom-db/genes.gbk')
 
-    run_command(f"/dipro2/matt/jdk-11.0.20/bin/java -jar /dipro2/matt/snpEff/snpEff.jar build -genbank -c /dipro2/matt/snpEff/snpEff.config -v /dipro2/matt/snpEff/data/custom-db/genes.gbk")
+    run_command(f"java -jar /dipro2/matt/snpEff/snpEff.jar build -genbank -c snpEff/snpEff.config -v snpEff/data/custom-db/genes.gbk")
 
 
 if len(sys.argv) != 2:
@@ -90,7 +90,7 @@ for r1_file in r1_files:
     Annotate the vcf with SNP effects
     '''
     annotated_vcf = f'{r1_file.replace("._1_val_1.fq.gz", ".snpeff.vcf")}'
-    run_command(f'/dipro2/matt/jdk-11.0.20/bin/java -jar /dipro2/matt/snpEff/snpEff.jar -c /dipro2/matt/snpEff/snpEff.config custom-db {filtered_vcf} > {annotated_vcf}')
+    run_command(f'java -jar /dipro2/matt/snpEff/snpEff.jar -c snpEff/snpEff.config custom-db {filtered_vcf} > {annotated_vcf}')
 
     '''
     Remove temp files
