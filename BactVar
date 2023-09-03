@@ -4,34 +4,98 @@ import os
 import subprocess
 import shutil
 from Bio import SeqIO
+from Bio.Seq import Seq
 from Bio.Seq import MutableSeq
 from pathlib import Path
+import argparse
 
+def add_args(a):
+    parser = argparse.ArgumentParser(description="BactVar")
+    parser.add_argument(
+        "--reference",
+        "-r",
+        help="Reference genome for comparison",
+        required=True,
+    )
+    parser.add_argument(
+        "--snpeff",
+        "-s",
+        default=False,
+        help="Path to snpeff",
+        required=False,
+    )
+    parser.add_argument(
+        "--gatk",
+        "-g",
+        default=False,
+        help="Path to gatk",
+        required=False,
+    )
+    parser.add_argument(
+        "--fastq",
+        "-f",
+        help="Alternative fastq suffix for identification",
+        required=False,
+    )
+    args = parser.parse_args(a)
+    return args
 
 
 def run_command(command):
     subprocess.run(command, shell=True, check=True)
 
+def findsnpeff(snpeffpath):
+    if snpeffpath:
+        if snpeffpath.endswith('/'):
+            print(f'snpEff path provided as: {snpeffpath}')
+            return snpeffpath
+        else:
+            snpeffpath+='/'
+            return(snpeffpath)
+    else:
+        snpeffpath = shutil.which('snpEff.jar')
+        if snpeffpath:
+            print(f'snpEff found in the PATH: {snpeffpath}')
+            return(snpeffpath)
+        else:
+            print('snpEff path not provided and not in the PATH')
+            exit()
+
+def findgatk(gatkPATH):
+    if gatkPATH:
+        print(f'gatk path provided as: {gatkPATH}')
+        return gatkPATH
+    else:
+        gatkPATH = shutil.which('gatk')
+        if gatkPATH:
+            if gatkPATH.endswith('/'):
+                print(f'gatk found in the PATH: {gatkPATH}')
+                return(gatkPATH)
+            else:
+                gatkPATH+='/'
+                return(gatkPATH)
+        else:
+            print('gatk path not provided and not in the PATH')
+            exit()
+
+
 def generate_mutated_reference(reference_fasta, filtered_vcf):
     reference_seq = SeqIO.read(reference_fasta, "fasta")
     mutated_reference = MutableSeq(str(reference_seq.seq))
-
-snp_positions = []
-with open(filtered_vcf, "r") as vcf_file:
-    for line in vcf_file:
-        if not line.startswith("#"):
-            fields = line.strip().split("\t")
-            position = int(fields[1])
-            ref_allele = fields[3]
-            alt_allele = fields[4]
-
-if len(ref_allele) == 1 and len(alt_allele) == 1: #is SNP only
-    snp_positions.append(position)
-
+    mutated_reference_fasta = r1_file.replace("1_val_1.fq.gz", "wga.aln")
+    snp_positions = []
+    with open(filtered_vcf, "r") as vcf_file:
+        for line in vcf_file:
+            if not line.startswith("#"):
+                fields = line.strip().split("\t")
+                position = int(fields[1])
+                ref_allele = fields[3]
+                alt_allele = fields[4]
+                if len(ref_allele) == 1 and len(alt_allele) == 1: # is SNP only
+                    snp_positions.append(position)
     for position in snp_positions:
         mutated_reference[position - 1] = alt_allele
-    mutated_reference_fasta = reference_fasta.replace(".fasta", "_wga.aln")
-    mutated_reference_seq = mutated_reference.toseq()
+    mutated_reference_seq = Seq(str(mutated_reference))
     mutated_reference_record = reference_seq
     mutated_reference_record.seq = mutated_reference_seq
 
@@ -39,70 +103,97 @@ if len(ref_allele) == 1 and len(alt_allele) == 1: #is SNP only
 
     return mutated_reference_fasta
 
-def build_snpEff(reference_file):
-    run_command(f"prokka {reference_file} --cpus 1 --prefix customref")
-    os.mkdir('snpEff/data/custom-db')
-    shutil.copy('./customref/customref.gbk', 'snpEff/data/custom-db/genes.gbk')
+def build_snpEff(reference_file, snpeffpath):
+    '''
+    Reference genome annotation with prokka
+    Build custom snpEff DB from .gbk
+    '''
+    run_command(f"prokka {reference_file} --cpus 6 --prefix customref")
+    os.mkdir(f'{snpeffpath}data/custom-db')
+    shutil.copy('./customref/customref.gbk', snpeffpath+'data/custom-db/genes.gbk')
+    fh = open(f'{snpeffpath}snpEff.config')
+    fc = fh.readlines()
+    output = open(f'{snpeffpath}snpEff.config', 'w')
+    for line in fc[0:370]:
+        output.write(line)
+    output.write(f'custom-db.genome: custom-db\n')
+    for line in fc[370:]:
+        output.write(line)
+    run_command(f"java -jar {snpeffpath}snpEff.jar build -genbank -c {snpeffpath}snpEff.config -v custom-db")
 
-    run_command(f"java -jar /dipro2/matt/snpEff/snpEff.jar build -genbank -c snpEff/snpEff.config -v snpEff/data/custom-db/genes.gbk")
 
+if __name__ == "__main__":
 
-if len(sys.argv) != 2:
-    print("Usage: BactVar <reference.gb>")
-    sys.exit(1)
-
-reference_file = sys.argv[1]
-
-run_command(f"bwa index {reference_fasta}")
-run_command(f"samtools faidx {reference_fasta}")
-rout = reference_fasta.replace('.fasta','.dict')
-run_command(f"gatk CreateSequenceDictionary -REFERENCE {reference_fasta} -OUTPUT {rout}")
-
-r1_files = []
-for file_name in os.listdir("."):
-    if file_name.endswith("val_1.fq.gz"):
-        r1_files.append(file_name)
-
-for r1_file in r1_files:
-    r2_file = r1_file.replace("val_1", "val_2")
-
+    args = add_args(sys.argv[1:])
+    reference_file =args.reference
+    snpeffpath = args.snpeff
+    fastqsuffix = args.fastq
+    gatkPATH = args.gatk
 
     '''
-    Run GATK gVCF workflow
+    Build custom snpEff database
     '''
-    run_command(f'bwa mem -R "@RG\\tID:FLOWCELL1.LANE1\\tPL:ILLUMINA\\tLB:test\\tSM:someID" {reference_fasta} {r1_file} {r2_file} > aln.sam')
-    run_command('gatk SortSam -I aln.sam -O sorted.bam -SORT_ORDER coordinate')
-    run_command('gatk MarkDuplicates -I sorted.bam -O dedup.bam -METRICS_FILE metrics.txt')
-    run_command('gatk BuildBamIndex -INPUT dedup.bam')
-    run_command(f'gatk HaplotypeCaller -R {reference_fasta} -I dedup.bam -ploidy 1 -O raw_gVCF.vcf -ERC GVCF')
-    run_command(f'gatk GenotypeGVCFs -R {reference_fasta} --variant raw_gVCF.vcf -O raw.vcf')
-    filtered_vcf = f'{r1_file.replace("._1_val_1.fq.gz", ".filtered.vcf")}'
-    run_command(f'gatk VariantFiltration -R {reference_fasta} -V raw.vcf -O {filtered_vcf} --filter-expression "QUAL < 30.0" --filter-name "LowQual"')
-
+    snpeffpath = findsnpeff(snpeffpath)
+    gatkPATH = findgatk(gatkPATH)
+    build_snpEff(reference_file, snpeffpath)
 
     '''
-    Generate a SNP-mutated version of the reference (WGA)
+    Prepare reference for variant calling
     '''
-    mutated_reference_fasta = generate_mutated_reference(reference_fasta, filtered_vcf)
+    run_command(f"bwa index {reference_file}")
+    run_command(f"samtools faidx {reference_file}")
+    suf = '.' + reference_file.split('.')[-1]
+    rout = reference_file.replace(suf,'.dict')
+
+    run_command(f"{gatkPATH}gatk CreateSequenceDictionary -REFERENCE {reference_file} -OUTPUT {rout}")
+
+    errout = open('ERR.txt', 'w')
+
+    r1_files = []
+    for file_name in os.listdir("."):
+        if file_name.endswith("val_1.fq.gz"):
+            r1_files.append(file_name)
+
+    for r1_file in r1_files:
+        r2_file = r1_file.replace("1_val_1", "2_val_2")
 
 
-    '''
-    Annotate the vcf with SNP effects
-    '''
-    annotated_vcf = f'{r1_file.replace("._1_val_1.fq.gz", ".snpeff.vcf")}'
-    run_command(f'java -jar /dipro2/matt/snpEff/snpEff.jar -c snpEff/snpEff.config custom-db {filtered_vcf} > {annotated_vcf}')
+        try:
+            '''
+            Run GATK gVCF best practices workflow
+            '''
+            run_command(f'bwa mem -R "@RG\\tID:FLOWCELL1.LANE1\\tPL:ILLUMINA\\tLB:test\\tSM:someID" {reference_file} {r1_file} {r2_file} > aln.sam')
+            run_command(f'{gatkPATH}gatk --java-options "-Xmx4G" SortSam -I aln.sam -O sorted.bam -SORT_ORDER coordinate')
+            run_command(f'{gatkPATH}gatk --java-options "-Xmx4G" MarkDuplicates -I sorted.bam -O dedup.bam -METRICS_FILE metrics.txt')
+            run_command(f'{gatkPATH}gatk --java-options "-Xmx4G" BuildBamIndex -INPUT dedup.bam')
+            run_command(f'{gatkPATH}gatk --java-options "-Xmx4G" HaplotypeCaller -R {reference_file} -I dedup.bam -ploidy 1 -O raw_gVCF.vcf -ERC GVCF')
+            run_command(f'{gatkPATH}gatk --java-options "-Xmx4G" GenotypeGVCFs -R {reference_file} --variant raw_gVCF.vcf -O raw.vcf')
+            filtered_vcf = r1_file.replace("_1_val_1.fq.gz", ".filtered.vcf")
+            run_command(f'{gatkPATH}gatk --java-options "-Xmx4G" VariantFiltration -R {reference_file} -V raw.vcf -O {filtered_vcf} --filter-expression "QUAL < 30.0" --filter-name "LowQual"')
 
-    '''
-    Remove temp files
-    '''
-    os.remove('aln.sam')
-    os.remove('sorted.bam')
-    os.remove('metrics.txt')
-    os.remove('dedup.bam')
-    os.remove('raw_gVCF.vcf')
-    os.remove('raw.vcf')
+            '''
+            Generate a SNP-mutated version of the reference (WGA)
+            '''
+            mutated_reference_fasta = generate_mutated_reference(reference_file, filtered_vcf)
 
-    gID = R1.replace('_val_1.fq.gz', '')
-    print(f"{gID} complete")
+            '''
+            Annotate the vcf with SNP effects
+            '''
+            annotated_vcf = f'{filtered_vcf.replace(".vcf", ".snpeff.vcf")}'
+            run_command(f'java -jar -Xmx4G {snpeffpath}snpEff.jar -c {snpeffpath}snpEff.config custom-db {filtered_vcf} > {annotated_vcf}')
+        except:
+            errout.write(f'{r1_file}\n')
+            continue
+        '''
+        Remove temp files
+        '''
+        os.remove('aln.sam')
+        os.remove('sorted.bam')
+        os.remove('metrics.txt')
+        os.remove('dedup.bam')
+        os.remove('raw_gVCF.vcf')
+        os.remove('raw.vcf')
 
-print('\n\n\nAll finished!\n\n\n')
+        print(f"{annotated_vcf} complete")
+
+    print('\n\n\nAll finished!\n\n\n')
