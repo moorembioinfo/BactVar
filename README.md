@@ -5,13 +5,13 @@
 Map reads with BWA from paired short read files to a reference genome, followed by variant calling with GATK HaplotypeCaller and gVCF best practices. A SNP-only whole-reference alignment is generated and variant effects are annotated by SnpEff. 
 
 ## Usage
-Run in a directory of fastq (R1 and R2) files, that have already been trimmed.
+Run in a directory of fastq (R1 and R2) files, that have already been trimmed. BactVar will assume they have the TrimGalore! suffix of _1_val_1.fq.gz/_2_val_2.fq.gz. If they don't then provide an alternative with --fastq 
 
 ```shell
 BactVar <reference.fasta>
 ```
 
-## Extract core SNPs and generate a phylogeny
+## Core genome extraction, phylogenetics and correction for recombination
 
 Combine whole reference SNP alignments, extract the core genome with [BactCore](https://github.com/moorembioinfo/BactCore) and generated a phylogeny with [IQTREE](https://github.com/Cibiv/IQ-TREE) and [ClonalFrameML](https://github.com/xavierdidelot/ClonalFrameML)
 
@@ -29,7 +29,7 @@ BactVar is written in python3 and requires the following python packages:
 
 > - Biopython
 
-and software:
+BactVar has been built around bwa, GATK, snpEff etc. The most up to date versions (mid 2023) have been used:
 
 > - prokka
 > - Java ≥v11
@@ -38,6 +38,7 @@ and software:
 > - snpEff (tested on v5.1f)
 > - samtools (tested on v1.9)
 
+It won't work with much earlier versions of GATK for example, so I reccomend install these versions or above. 
 
 
 ## Citations
@@ -60,4 +61,11 @@ DePristo M, Banks E, Poplin R, Garimella K, Maguire J, Hartl C, Philippakis A, d
 Poplin R, Ruano-Rubio V, DePristo MA, Fennell TJ, Carneiro MO, Van der Auwera GA, Kling DE, Gauthier LD, Levy-Moonshine A, Roazen D, Shakir K, Thibault J, Chandran S, Whelan C, Lek M, Gabriel S, Daly MJ, Neale B, MacArthur DG, Banks E. (2017). Scaling accurate genetic variant discovery to tens of thousands of samples bioRxiv, 201178. DOI: 10.1101/201178
 
 Van der Auwera GA & O'Connor BD. (2020). Genomics in the Cloud: Using Docker, GATK, and WDL in Terra (1st Edition). O'Reilly Media.
+
+PROKKA:  
+Seemann T.
+Prokka: rapid prokaryotic genome annotation
+Bioinformatics 2014 Jul 15;30(14):2068-9. PMID:24642063
+
+
 
