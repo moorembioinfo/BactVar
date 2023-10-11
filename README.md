@@ -32,7 +32,7 @@ BactVar is written in python3 and requires the following python packages:
 BactVar has been built around bwa, GATK, snpEff etc. The most up to date versions (mid 2023) have been used:
 
 > - prokka
-> - Java ≥v11
+> - Java ≥v17 
 > - GATK (tested on v4.4.0) 
 > - bwa (tested on 0.7.13-r1126)
 > - snpEff (tested on v5.1f)
