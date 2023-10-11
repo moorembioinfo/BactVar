@@ -40,6 +40,8 @@ BactVar has been built around bwa, GATK, snpEff etc. The most up to date version
 
 It won't work with much earlier versions of GATK for example, so I reccomend install these versions or above. 
 
+For local installations of java I reccommend: https://pypi.org/project/install-jdk/
+
 
 ## Citations
 
